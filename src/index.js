@@ -1,9 +1,14 @@
-const [ { get }, moment, links ] = [ require("superagent"), require("moment"), { AVATAR_API: "https://my.elara.services/api/avatars/r", DEFAULT_AVATAR: `https://cdn.superchiefyt.xyz/api/bot/i_n_a.png` } ]
+const [ moment, fetch, pack ] = [ 
+    require("moment"),
+    require("@elara-services/fetch"), 
+    require("../package.json") 
+];
 
-module.exports = class RobloxAPI {
+module.exports = class Roblox {
     /**
      * @param {object} [options] 
      * @param {string} [options.cookie]
+     * @param {boolean} [options.debug]
      * @param {object} [options.apis]
      * @param {boolean} [options.apis.rover]
      * @param {boolean} [options.apis.bloxlink]
@@ -11,17 +16,19 @@ module.exports = class RobloxAPI {
     constructor(options) {
         this.rover = Boolean(options?.apis?.rover ?? true);
         this.bloxlink = Boolean(options?.apis?.bloxlink ?? true);
+        this.debug = Boolean(options?.debug ?? false);
         this.options = options;
         if(!this.bloxlink && !this.rover) throw new Error(`[ROBLOX:API:ERROR]: You can't disable both RoVer or Bloxlink APIs... how else will you fetch the information?`);
     };
+
     /** @private */
     get cookie() { return this.options?.cookie ?? ""; };
     get fetch() { return this.get; };
 
     
-    async get(user) {
+    async get(user, basic = false) {
         if(typeof user === "string" && user.match(/<@!?/gi)) {
-            let r = await this.fetchRoVer(user.replace(/<@!?|>/gi, ""));
+            let r = await this.fetchRoVer(user.replace(/<@!?|>/gi, ""), basic);
             if(!r || r.status !== true) return this.status(r?.message ?? "I was unable to fetch the Roblox information for that user.");
             return r;
         } else {
@@ -32,77 +39,55 @@ module.exports = class RobloxAPI {
     };
 
     /**
-     * @private
      * @param {string} name 
      * @returns {Promise<object|null>}
      */
     async fetchByUsername(name){
-        let res = await get(`https://api.roblox.com/users/get-by-username?username=${name}`).catch(() => null);
-        if(!res) return null;
-        if(res.status !== 200) return null;
-        return await this.fetchRoblox(res.body.Id);
+        let res = await this._request(`https://api.roblox.com/users/get-by-username?username=${name}`);
+        if (!res || !res.Id) return null
+        return this.fetchRoblox(res.Id);
     };
-    /**
-     * @private
-     * @param {string} [url]
-     * @returns {Promise<object|void>}
-     */
-    async privateFetch(url = "") {
-        let res = await get(url)
-        .set("Cookie", this.cookie.replace(/%TIME_REPLACE%/gi, new Date().toLocaleString()))
-        .catch(() => ({ status: 500 }));
-        if(res.status !== 200) return null;
-        return res.body ?? null;
-    };
-    /**
-     * @private
-     * @param {string} message 
-     * @param {boolean} status 
-     * @returns {object}
-     */
-    status(message, status = false) { return { status, message } };
 
     /**
-     * @private
-     * @param {string} url 
-     * @returns {Promise<object|void>}
-     */
-    async privateGet(url) {
-        try{
-            let res = await get(url).catch(() => null);
-            if(!res || res.status !== 200 || !res.body) return null;
-            if(res.body.status !== "ok") return null;
-            return res.body;
-        }catch{
-            return null;
-        }
-    };
-    /**
-     * @private
      * @param {string} id 
+     * @param {boolean} [basic=false] - If the basic information should be returned.
      * @returns {Promise<object|null>}
      */
-    async fetchRoVer(id){
-        if(!this.rover) return this.fetchBloxLink(id);
+    async fetchRoVer(id, basic = false){
+        if(!this.rover) return this.fetchBloxLink(id, basic);
         let r = await this.privateGet(`https://verify.eryn.io/api/user/${id}`);
-        if(!r) return await this.fetchBloxLink(id);
-        return await this.fetchRoblox(r.robloxId);
+        if(!r) return this.fetchBloxLink(id, basic);
+        if (basic) return this.fetchBasicRobloxInfo(r.robloxId);
+        return this.fetchRoblox(r.robloxId);
     };
 
     /**
-     * @private
      * @param {string} id 
+     * @param {boolean} [basic=false] - If the basic information should be returned.
      * @returns {Promise<object|null>}
      */
-    async fetchBloxLink(id) {
+    async fetchBloxLink(id, basic = false) {
         if(!this.bloxlink) return null;
         let r = await this.privateGet(`https://api.blox.link/v1/user/${id}`);
-        if(!r) return this.status(`I was unable to find an account with that userID!`);
-        if(typeof r.primaryAccount !== "string") return this.status(`I was unable to find an account with that userID!`);
-        return await this.fetchRoblox(r.primaryAccount)
+        if(!r || typeof r.primaryAccount !== "string") return this.status(`I was unable to find an account with that userID!`);
+        if (basic) return this.fetchBasicRobloxInfo(r.primaryAccount);
+        return this.fetchRoblox(r.primaryAccount)
     };
+
     /**
-     * @private
+     * @param {string} id 
+     * @returns {Promise<object>}
+     */
+    async fetchBasicRobloxInfo(id) {
+        let res = await this.privateFetch(`https://users.roblox.com/v1/users/${id}`);
+        if (!res) return { status: false, message: `Unable to fetch their Roblox account.` }
+        return {
+            status: true,
+            ...res
+        }
+    }
+
+    /**
      * @param {string|number} id 
      * @returns {Promise<object|null>}
      */
@@ -117,13 +102,13 @@ module.exports = class RobloxAPI {
             if(!userReq) return this.status(`I was unable to find an account with that user ID!`);
             if(!g) g = [];
             let [bio, joinDate, pastNames, userStatus, friends, followers, following, groups, avatar, defAvatar] = [ 
-                "", "", "", "Offline", 0, 0, 0, [] , 
-                await get(`${links.AVATAR_API}/${userReq.name}`).catch(() => {return {status: 404}}),
-                links.DEFAULT_AVATAR
+                "", "", "", "Offline", 0, 0, 0, [],
+                await this._request(`${pack.links.AVATAR_API}/${userReq.name}`),
+                pack.links.DEFAULT_AVATAR
             ]
-            if(!avatar || avatar.status !== 200) avatar = defAvatar;
-            if(avatar?.body?.status !== true) avatar = defAvatar;
-            if(avatar?.body?.status === true) avatar = avatar?.body?.avatar;
+            if(!avatar) avatar = defAvatar;
+            else if(avatar?.status !== true) avatar = defAvatar;
+            else if(avatar?.status === true) avatar = avatar?.avatar;
             if(newProfile) {
                 bio = userReq ? userReq.description : "";
                 friends = newProfile.FriendsCount ?? 0;
@@ -181,13 +166,79 @@ module.exports = class RobloxAPI {
             return this.status(`Error while trying to fetch the information\n${err.message}`)
         }
     };
+
     /**
      * @param {string|number} user 
      * @returns {Promise<boolean>}
      */
     async isVerified(user) {
-        let r = await this.get(user);
+        let r = await this.get(user, true);
         if(!r || r.status !== true) return Promise.resolve(false);
         return Promise.resolve(true);
     };
+
+    /**
+     * @private
+     * @param {string} url 
+     * @param {object} headers 
+     * @param {string} method 
+     * @param {boolean} returnJSON 
+     * @returns {Promise<object|null|any>}
+     */
+    async _request(url, headers = undefined, method = "GET", returnJSON = true) {
+        try {
+            let body = fetch(url, method)
+            if (headers) body.header(headers)
+            let res = await body.send()
+            .catch(() => ({ statusCode: 500 }));
+            this._debug(`Requesting (${method}, ${url}) and got ${res.statusCode}`);
+            if (res.statusCode !== 200) return null;
+            return res[returnJSON ? "json" : "text"]();
+        } catch (err) {
+            this._debug(`ERROR while making a request to (${method}, ${url}) `, err);
+            return null;
+        }
+    };
+
+    /**
+     * @private
+     */
+    _debug(...args) {
+        if (!this.debug) return;
+        return console.log(`[${pack.name.toUpperCase()}, v${pack.version}]: `, ...args);
+    }
+
+    /**
+     * @private
+     * @param {string} [url]
+     * @returns {Promise<object|void>}
+     */
+    async privateFetch(url = "") {
+        return this._request(url, this.cookie ? {
+            "Cookie": this.cookie.replace(/%TIME_REPLACE%/gi, new Date().toLocaleString())
+        } : undefined);
+    };
+    /**
+     * @private
+     * @param {string} message 
+     * @param {boolean} status 
+     * @returns {object}
+     */
+    status(message, status = false) { return { status, message } };
+
+    /**
+     * @private
+     * @param {string} url 
+     * @returns {Promise<object|void>}
+     */
+    async privateGet(url) {
+        try{
+            let res = await this._request(url)
+            if (!res || res.status !== "ok") return null;
+            return res;
+        }catch{
+            return null;
+        }
+    };
+
 };

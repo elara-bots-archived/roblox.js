@@ -1,8 +1,10 @@
 {
   "name": "@elara-services/roblox.js",
-  "version": "1.0.2",
+  "version": "2.0.0",
   "description": "Fetch Roblox or Discord user's Roblox information!",
   "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "typings": "./src/index.d.ts",
   "keywords": [
     "roblox",
     "roblox-api",
@@ -10,13 +12,14 @@
     "noblox",
     "api"
   ],
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "author": "SUPERCHIEFYT (Elara-Discord-Bots, Elara-Services)",
   "license": "ISC",
   "dependencies": {
-    "moment": "2.29.1",
-    "superagent": "7.0.0"
+    "@elara-services/fetch": "^1.0.0",
+    "moment": "2.29.1"
+  },
+  "links": {
+    "AVATAR_URL": "https://my.elara.services/api/avatars/r",
+    "DEFAULT_AVATAR": "https://cdn.superchiefyt.xyz/api/bot/i_n_a.png"
   }
 }
