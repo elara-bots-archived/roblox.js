@@ -7,15 +7,15 @@ declare module "@elara-services/roblox.js" {
             rover?: boolean;
             bloxlink?: boolean;
         }
-    };
+    }
 
     export interface RobloxStatus {
         status: boolean;
         message?: string;
-    };
+    }
 
     type Response = Promise<RobloxStatus|object|null>;
-
+    // @ts-ignore
     export = class Roblox {
         public constructor(options?: RobloxOptions);
         public rover: boolean;
@@ -39,6 +39,15 @@ declare module "@elara-services/roblox.js" {
             displayName: string
         }>;
         public fetchRoblox(id: string|number): Response;
+        public showDiscordMessageData(res: object, user?: object, options?: {
+            showButtons?: boolean,
+            color?: number,
+            emoji?: string,
+            secondEmoji?: string
+        }): {
+            embeds: object[],
+            components: object[]
+        }
 
 
         // Private Methods

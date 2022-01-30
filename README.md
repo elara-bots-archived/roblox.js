@@ -58,6 +58,14 @@ roblox.isVerified("One of the versions above ^").then(console.log)
 ```
 
 
+### showDiscordMessageData
+```js
+let res = await roblox.get("<@!288450828837322764>");
+return message.channel.send(roblox.showDiscordMessageData(res));
+// OR 
+return interaction.reply(roblox.showDiscordMessageData(res));
+```
+
 ### Return responses
 
 

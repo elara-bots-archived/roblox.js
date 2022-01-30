@@ -1,6 +1,6 @@
 {
   "name": "@elara-services/roblox.js",
-  "version": "2.0.0",
+  "version": "2.5.0",
   "description": "Fetch Roblox or Discord user's Roblox information!",
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
@@ -19,7 +19,7 @@
     "moment": "2.29.1"
   },
   "links": {
-    "AVATAR_URL": "https://my.elara.services/api/avatars/r",
+    "AVATAR_URL": "https://my.elara.services/api/avatars/roblox",
     "DEFAULT_AVATAR": "https://cdn.superchiefyt.xyz/api/bot/i_n_a.png"
   }
 }

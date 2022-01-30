@@ -1,7 +1,9 @@
-const [ moment, fetch, pack ] = [ 
+const [ moment, fetch, pack, formatDate, formatNum ] = [ 
     require("moment"),
     require("@elara-services/fetch"), 
-    require("../package.json") 
+    require(`${process.cwd()}/package.json`),
+    (date, format = "f") => `<t:${Math.floor(new Date(date).getTime() / 1000)}${format ? `:${format}` : ""}>`,
+    (num) => num.toLocaleString()
 ];
 
 module.exports = class Roblox {
@@ -103,12 +105,12 @@ module.exports = class Roblox {
             if(!g) g = [];
             let [bio, joinDate, pastNames, userStatus, friends, followers, following, groups, avatar, defAvatar] = [ 
                 "", "", "", "Offline", 0, 0, 0, [],
-                await this._request(`${pack.links.AVATAR_API}/${userReq.name}`),
+                await this._request(`${pack.links.AVATAR_URL}/${userReq.name}`),
                 pack.links.DEFAULT_AVATAR
             ]
             if(!avatar) avatar = defAvatar;
-            else if(avatar?.status !== true) avatar = defAvatar;
-            else if(avatar?.status === true) avatar = avatar?.avatar;
+            else if(avatar?.status) avatar = avatar?.avatar;
+            else avatar = defAvatar;
             if(newProfile) {
                 bio = userReq ? userReq.description : "";
                 friends = newProfile.FriendsCount ?? 0;
@@ -241,4 +243,70 @@ module.exports = class Roblox {
         }
     };
 
+
+    /**
+     * @param {object} res - Information from the Roblox.js response
+     * @param {object} user - Discord.js user class
+     * @param {object} [options]
+     * @param {boolean} [options.showButtons=true] - Show the link buttons for Profile and Avatar
+     * @param {string} [options.emoji="▫"] 
+     * @param {string} [options.secondEmoji="◽"] 
+     * @param {number} [options.color=11701759] - The embed color
+     */
+    showDiscordMessageData(res, user = null, { showButtons = true, emoji = "▫", secondEmoji = "◽", color = 11701759 } = {}) {
+        let [ fields, warning ] = [ [], false ];
+
+        if (res.activity){
+            let gameURL = "";
+            if (res.activity.PlaceId) gameURL = `https://roblox.com/games/${res.activity.PlaceId}`;
+            fields.push(
+                { 
+                    name: `Activity`, 
+                    value: `${emoji}Status: ${res.activity.LastLocation}${gameURL ? `\n${emoji}Game: [URL](${gameURL} "Click here to view the game!")` : ""}\n${emoji}Last Seen: ${formatDate(res.activity.LastOnline)} (${formatDate(res.activity.LastOnline, "R")})`
+                }
+            )
+        }
+        if (res.user.bio) fields.push({ name: `Bio`, value: res.user.bio.slice(0, 1024) });
+        if (res.groups.length){
+            for (const g of res.groups.sort((a, b) => b.primary - a.primary).slice(0, 4)) {
+                fields.push({
+                    name: `${g.primary ? "[Primary] " : ""}${g.name}`,
+                    value: `${emoji}ID: ${g.id}\n${emoji}Rank: ${g.rank}\n${emoji}Role: ${g.role}\n${emoji}Link: [URL](${g.url})`,
+                    inline: g.primary ? false : true
+                })
+            }
+            if (res.groups.length > 4) warning = true;
+        }
+
+        return {
+            embeds: [{
+                thumbnail: { url: res.user.avatar },
+                timestamp: new Date(),
+                fields,
+                color,
+                description: [
+                    `${emoji}Username: ${res.user.username}`,
+                    `${emoji}ID: ${res.user.id}`,
+                    `${emoji}Past Names: ${res.user.lastnames.map(g => `\`${g || "None"}\``).join(", ") || "None"}`,
+                    `${emoji}Joined: ${formatDate(res.user.joined.full, "f")} (${formatDate(res.user.joined.full, "R")})`,
+                    `${emoji}Counts:`,
+                    `${secondEmoji}Groups: ${formatNum(res.groups.length)}`,
+                    `${secondEmoji}Friends: ${formatNum(res.user.counts.friends)}`,
+                    `${secondEmoji}Followers: ${formatNum(res.user.counts.followers)}`,
+                    `${secondEmoji}Following: ${formatNum(res.user.counts.following)}`,
+                ].join("\n"),
+                author: { name: `Roblox Info for ${user ? `${user.tag} (${user.id})` : `ID: ${res.user.id}`}`,  icon_url: user?.displayAvatarURL?.({dynamic: true}) ?? `https://cdn.discordapp.com/emojis/411630434040938509.png`, url: `https://my.elara.services/support` },
+                footer: { text: warning ? `This will only show up to 4 groups!` : `` }
+            }],
+            components: showButtons ? [
+                {
+                    type: 1,
+                    components: [
+                        { type: 2, style: 5, label: "Profile", url: res.user.url, emoji: { id: "411630434040938509" } },
+                        { type: 2, style: 5, label: "Avatar", url: res.user.avatar, emoji: { id: "719431405989396530" } }
+                    ]
+                }
+            ] : []
+        }
+    }
 };
