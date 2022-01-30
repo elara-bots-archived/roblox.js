@@ -1,7 +1,7 @@
 const [ moment, fetch, pack, formatDate, formatNum ] = [ 
     require("moment"),
     require("@elara-services/fetch"), 
-    require(`${process.cwd()}/package.json`),
+    require(`../package.json`),
     (date, format = "f") => `<t:${Math.floor(new Date(date).getTime() / 1000)}${format ? `:${format}` : ""}>`,
     (num) => num.toLocaleString()
 ];
