@@ -3,15 +3,18 @@ declare module "@elara-services/roblox.js" {
     export interface RobloxOptions {
         cookie?: string;
         debug?: boolean;
-        apis?: {
-            rover?: boolean;
-            bloxlink?: boolean;
-        }
+        apis?: { rover?: boolean; bloxlink?: boolean; };
+        keys?: { bloxlink: string; }
     }
 
     export interface RobloxStatus {
         status: boolean;
         message?: string;
+    }
+
+    export interface RobloxJSEvents {
+        on(event: "fetch", listener: (user: string, service: string) => void): void;
+        on(event: "failed", listener: (user: string, service: string) => void): void;
     }
 
     type Response = Promise<RobloxStatus|object|null>;
@@ -21,13 +24,15 @@ declare module "@elara-services/roblox.js" {
         public rover: boolean;
         public bloxlink: boolean;
         public debug: boolean;
+        public keys: { bloxlink?: string | null }
         public options: RobloxOptions;
+        public events: RobloxJSEvents;
         public isVerifed(user: string|number): Promise<boolean>;
-        public fetch(user: string|number, basic?: boolean): Promise<RobloxStatus|object>;
-        public get(user: string|number, basic?: boolean): Promise<RobloxStatus|object>;
+        public fetch(user: string|number, basic?: boolean, guildId?: string): Promise<RobloxStatus|object>;
+        public get(user: string|number, basic?: boolean, guildId?: string): Promise<RobloxStatus|object>;
         public fetchByUsername(name: string): Response;
-        public fetchRover(id: string, basic?: boolean): Response;
-        public fetchBloxlink(id: string, basic?: boolean): Response;
+        public fetchRover(id: string, basic?: boolean, guildId?: string): Response;
+        public fetchBloxlink(id: string, basic?: boolean, guildId?: string): Response;
         public fetchBasicRobloxInfo(id: string): Response | Promise<{
             status: boolean;
             description: string;
@@ -56,6 +61,7 @@ declare module "@elara-services/roblox.js" {
         private _debug(...args: any): void;
         private privateFetch(url: string): Promise<object|null>;
         private privateGet(url: string): Promise<object|null>;
-        
+        private emit(event: string, ...args: any[]): void;
+
     }
 }
