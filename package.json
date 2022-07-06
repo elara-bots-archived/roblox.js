@@ -16,7 +16,7 @@
   "license": "ISC",
   "dependencies": {
     "@elara-services/fetch": "^1.0.0",
-    "moment": "2.29.3"
+    "moment": "2.29.4"
   },
   "links": {
     "AVATAR_URL": "https://my.elara.services/api/avatars/roblox",
