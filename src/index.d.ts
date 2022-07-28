@@ -3,6 +3,7 @@ declare module "@elara-services/roblox.js" {
     export interface RobloxOptions {
         cookie?: string;
         debug?: boolean;
+        avatarUrl?: string;
         apis?: { rover?: boolean; bloxlink?: boolean; };
         keys?: { bloxlink: string; }
     }
@@ -56,7 +57,6 @@ declare module "@elara-services/roblox.js" {
 
 
         // Private Methods
-        private cookie: string;
         private _request(url: string, headers?: object, method?: string, returnJSON?: boolean): Promise<object|string|null>;
         private _debug(...args: any): void;
         private privateFetch(url: string): Promise<object|null>;

@@ -66,6 +66,15 @@ return message.channel.send(roblox.showDiscordMessageData(res));
 return interaction.reply(roblox.showDiscordMessageData(res));
 ```
 
+### Change Avatar Url
+```js
+const roblox = new (require("@elara-services/roblox.js"))({
+    avatarUrl: `https://example.com/users/%USERID%.png` // '%USERID%' is required!
+});
+// ....
+```
+
+
 ### Return responses
 
 

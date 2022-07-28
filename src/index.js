@@ -1,6 +1,6 @@
-const [ moment, fetch, pack, formatDate, formatNum, { EventEmitter } ] = [ 
+const [moment, fetch, pack, formatDate, formatNum, { EventEmitter }] = [
     require("moment"),
-    require("@elara-services/fetch"), 
+    require("@elara-services/fetch"),
     require(`../package.json`),
     (date, format = "f") => `<t:${Math.floor(new Date(date).getTime() / 1000)}${format ? `:${format}` : ""}>`,
     (num) => num.toLocaleString(),
@@ -14,6 +14,7 @@ module.exports = class Roblox {
      * @param {object} [options] 
      * @param {string} [options.cookie]
      * @param {boolean} [options.debug]
+     * @param {string} [options.avatarUrl]
      * @param {object} [options.apis]
      * @param {boolean} [options.apis.rover]
      * @param {boolean} [options.apis.bloxlink]
@@ -26,23 +27,21 @@ module.exports = class Roblox {
         this.keys = options.keys ?? { bloxlink: null };
         this.debug = Boolean(options?.debug ?? false);
         this.options = options;
+        if ("avatarUrl" in options) {
+            if (!options.avatarUrl.includes("%USERID%")) throw new Error(`[ROBLOX:API:ERROR]: You forgot to include '%USERID%' in the avatarUrl field.`);
+        }
         this.events = new EventEmitter();
-        if(!this.bloxlink && !this.rover) throw new Error(`[ROBLOX:API:ERROR]: You can't disable both RoVer or Bloxlink APIs... how else will you fetch the information?`);
+        if (!this.bloxlink && !this.rover) throw new Error(`[ROBLOX:API:ERROR]: You can't disable both RoVer or Bloxlink APIs... how else will you fetch the information?`);
     };
-
-    /** @private */
-    get cookie() { return this.options?.cookie ?? ""; };
     get fetch() { return this.get; };
-
-    
     async get(user, basic = false, guildId = null) {
-        if(typeof user === "string" && user.match(/<@!?/gi)) {
+        if (typeof user === "string" && user.match(/<@!?/gi)) {
             let r = await this.fetchRoVer(user.replace(/<@!?|>/gi, ""), basic, guildId);
-            if(!r || r.status !== true) return this.status(r?.message ?? "I was unable to fetch the Roblox information for that user.");
+            if (!r || r.status !== true) return this.status(r?.message ?? "I was unable to fetch the Roblox information for that user.");
             return r;
         } else {
             let s = await (isNaN(parseInt(user)) ? this.fetchByUsername(user) : this.fetchRoblox(parseInt(user)));
-            if(!s || s.status !== true) return this.status(s?.message ?? "I was unable to fetch the Roblox information for that user.");
+            if (!s || s.status !== true) return this.status(s?.message ?? "I was unable to fetch the Roblox information for that user.");
             return s;
         };
     };
@@ -51,7 +50,7 @@ module.exports = class Roblox {
      * @param {string} name 
      * @returns {Promise<object|null>}
      */
-    async fetchByUsername(name){
+    async fetchByUsername(name) {
         // TODO: Replace this with the newer users.roblox.com API 
         let res = await this._request(`https://api.roblox.com/users/get-by-username?username=${name}`);
         if (!res || !res.Id) return null
@@ -64,10 +63,10 @@ module.exports = class Roblox {
      * @param {string | null} [guildId] - The guild ID for the BloxLink API v2 requests (OPTIONAL)
      * @returns {Promise<object|null>}
      */
-    async fetchRoVer(id, basic = false, guildId){
-        if(!this.rover) return this.fetchBloxLink(id, basic, guildId);
+    async fetchRoVer(id, basic = false, guildId) {
+        if (!this.rover) return this.fetchBloxLink(id, basic, guildId);
         let r = await this.privateGet(`https://verify.eryn.io/api/user/${id}`);
-        if(!r) return this.fetchBloxLink(id, basic, guildId);
+        if (!r) return this.fetchBloxLink(id, basic, guildId);
         this.emit("fetch", id, "rover");
         if (basic) return this.fetchBasicRobloxInfo(r.robloxId);
         return this.fetchRoblox(r.robloxId);
@@ -80,7 +79,7 @@ module.exports = class Roblox {
      * @returns {Promise<object|null>}
      */
     async fetchBloxLink(id, basic = false, guildId) {
-        if(!this.bloxlink) return this.status(`The bloxlink API is disabled by you.`);
+        if (!this.bloxlink) return this.status(`The bloxlink API is disabled by you.`);
         let r;
         if (!this.keys?.bloxlink) {
             if (!emitted) {
@@ -88,13 +87,13 @@ module.exports = class Roblox {
                 console.log(`[${pack.name.toUpperCase()}, v${pack.version}]: `, `The Bloxlink API v1 is deprecated, you need to set an API key using the 'keys' options`);
             }
             r = await this.privateGet(`https://api.blox.link/v1/user/${id}`);
-            if(!r || typeof r.primaryAccount !== "string") {
+            if (!r || typeof r.primaryAccount !== "string") {
                 this.emit("failed", id, "bloxlink");
                 return this.status(`I was unable to find an account with that userID!`);
             }
         } else {
             r = await this._request(`https://v3.blox.link/developer/discord/${id}${guildId ? `?guildId=${guildId}` : ""}`, { "api-key": this.keys.bloxlink }, "GET", true);
-            if(!r || !r.success || typeof r.user?.primaryAccount !== "string") {
+            if (!r || !r.success || typeof r.user?.primaryAccount !== "string") {
                 this.emit("failed", id, "bloxlink");
                 return this.status(`I was unable to find an account with that userID!`);
             }
@@ -118,26 +117,21 @@ module.exports = class Roblox {
      * @param {string|number} id 
      * @returns {Promise<object|null>}
      */
-    async fetchRoblox(id){
-        try{
-            let [ newProfile, userReq, g, onlineStatus ] = await Promise.all([
+    async fetchRoblox(id) {
+        try {
+            let [ newProfile, userReq, g, activity ] = await Promise.all([
                 this.privateFetch(`https://www.roblox.com/users/profile/profileheader-json?userId=${id}`),
                 this.privateFetch(`https://users.roblox.com/v1/users/${id}`),
                 this.privateFetch(`https://groups.roblox.com/v1/users/${id}/groups/roles`),
                 // TODO: Replace this with the new API, once they fix it
                 this.privateFetch(`https://api.roblox.com/users/${id}/onlinestatus`)
             ])
-            if(!userReq) return this.status(`I was unable to find an account with that user ID!`);
-            if(!g) g = [];
-            let [ bio, joinDate, pastNames, userStatus, friends, followers, following, groups, avatar, defAvatar ] = [ 
-                "", "", "", "Offline", 0, 0, 0, [],
-                await this._request(`${pack.links.AVATAR_URL}/${userReq.name}`),
-                pack.links.DEFAULT_AVATAR
+            if (!userReq) return this.status(`I was unable to find an account with that user ID!`);
+            if (!g) g = [];
+            let [bio, joinDate, pastNames, userStatus, friends, followers, following, groups] = [
+                null, "", "", "Offline", 0, 0, 0, []
             ]
-            if(!avatar) avatar = defAvatar;
-            else if(avatar?.status) avatar = avatar?.avatar;
-            else avatar = defAvatar;
-            if(newProfile) {
+            if (newProfile) {
                 bio = userReq ? userReq.description : "";
                 friends = newProfile.FriendsCount ?? 0;
                 followers = newProfile.FollowersCount ?? 0;
@@ -149,25 +143,25 @@ module.exports = class Roblox {
                 };
                 userStatus = newProfile.LastLocation ?? "Offline";
             }
-    
-            if(g && g.data && Array.isArray(g.data) && g.data.length !== 0){
-            for (const c of g.data){
-                groups.push({
-					name: c?.group?.name ?? "",
-					id: c?.group?.id ?? 0,
-					role_id: c?.role?.id,
-					rank: c?.role?.rank,
-					role: c?.role?.name,
-					members: c?.group?.memberCount ?? 0,
-					url: `https://roblox.com/groups/${c?.group?.id ?? 0}`,
-					primary: c?.isPrimaryGroup ?? false,
-					inclan: false,
-					emblem: { id: 0, url: "" },
-					owner: c?.group?.owner ?? null,
-					shout: c?.group?.shout ?? null,
-					raw: c
-				})
-            }
+
+            if (g?.data?.length) {
+                for (const c of g.data) {
+                    groups.push({
+                        name: c?.group?.name ?? "",
+                        id: c?.group?.id ?? 0,
+                        role_id: c?.role?.id,
+                        rank: c?.role?.rank,
+                        role: c?.role?.name,
+                        members: c?.group?.memberCount ?? 0,
+                        url: `https://roblox.com/groups/${c?.group?.id ?? 0}`,
+                        primary: c?.isPrimaryGroup ?? false,
+                        inclan: false,
+                        emblem: { id: 0, url: "" },
+                        owner: c?.group?.owner ?? null,
+                        shout: c?.group?.shout ?? null,
+                        raw: c
+                    })
+                }
             };
             return {
                 status: true,
@@ -176,21 +170,15 @@ module.exports = class Roblox {
                     id: userReq.id ?? 0,
                     online: userStatus ?? "Offline",
                     url: `https://roblox.com/users/${id}/profile`,
-                    avatar,
-                    bio: bio ?? null,
-                    joined: joinDate ?? null,
+                    avatar: (this.options.avatarUrl || pack.links.AVATAR).replace(/%userid%/gi, userReq.id),
+                    bio, joined: joinDate ?? null,
                     lastnames: pastNames ? pastNames.split(', ').filter(g => g !== "None") : [],
-                    counts: {
-                      friends: friends ?? 0,
-                      followers: followers ?? 0,
-                      following: following ?? 0
-                    }
+                    counts: { friends, followers, following }
                 },
-                groups: groups ?? [],
-                activity: onlineStatus ?? null
+                groups, activity
             }
-        }catch(err){
-            if(err.message.toString().toLowerCase() === "cannot destructure property `body` of 'undefined' or 'null'." || err.message.toString() === "Cannot destructure property 'body' of '(intermediate value)' as it is undefined.") return this.status(`Not Found`)
+        } catch (err) {
+            if (err.message.toString().toLowerCase() === "cannot destructure property `body` of 'undefined' or 'null'." || err.message.toString() === "Cannot destructure property 'body' of '(intermediate value)' as it is undefined.") return this.status(`Not Found`)
             return this.status(`Error while trying to fetch the information\n${err.message}`)
         }
     };
@@ -201,7 +189,7 @@ module.exports = class Roblox {
      */
     async isVerified(user) {
         let r = await this.get(user, true);
-        if(!r || r.status !== true) return Promise.resolve(false);
+        if (!r || r.status !== true) return Promise.resolve(false);
         return Promise.resolve(true);
     };
 
@@ -218,7 +206,7 @@ module.exports = class Roblox {
             let body = fetch(url, method)
             if (headers) body.header(headers)
             let res = await body.send()
-            .catch(() => ({ statusCode: 500 }));
+                .catch(() => ({ statusCode: 500 }));
             this._debug(`Requesting (${method}, ${url}) and got ${res.statusCode}`);
             if (res.statusCode !== 200) return null;
             return res[returnJSON ? "json" : "text"]();
@@ -242,7 +230,7 @@ module.exports = class Roblox {
      * @returns {Promise<object|void>}
      */
     async privateFetch(url = "") {
-        return this._request(url, this.cookie ? { "Cookie": this.cookie.replace(/%TIME_REPLACE%/gi, new Date().toLocaleString()) } : undefined);
+        return this._request(url, this.options.cookie ? { "Cookie": this.options.cookie.replace(/%TIME_REPLACE%/gi, new Date().toLocaleString()) } : undefined);
     };
     /**
      * @private
@@ -258,11 +246,11 @@ module.exports = class Roblox {
      * @returns {Promise<object|void>}
      */
     async privateGet(url) {
-        try{
+        try {
             let res = await this._request(url)
             if (!res || res.status !== "ok") return null;
             return res;
-        }catch{
+        } catch {
             return null;
         }
     };
@@ -281,19 +269,19 @@ module.exports = class Roblox {
      * @param {number} [options.color=11701759] - The embed color
      */
     showDiscordMessageData(res, user = null, { showButtons = true, emoji = "▫", secondEmoji = "◽", color = 11701759 } = {}) {
-        let [ fields, warning, gameURL ] = [ [], false, "" ];
+        let [fields, warning, gameURL] = [[], false, ""];
 
-        if (res.activity){
+        if (res.activity) {
             if (res.activity.PlaceId) gameURL = `https://roblox.com/games/${res.activity.PlaceId}`;
             fields.push(
-                { 
-                    name: `Activity`, 
+                {
+                    name: `Activity`,
                     value: `${emoji}Status: ${res.activity.LastLocation}${gameURL ? `\n${emoji}Game: [URL](${gameURL} "Click here to view the game!")` : ""}\n${emoji}Last Seen: ${formatDate(res.activity.LastOnline)} (${formatDate(res.activity.LastOnline, "R")})`
                 }
             )
         }
         if (res.user.bio) fields.push({ name: `Bio`, value: res.user.bio.slice(0, 1024) });
-        if (res.groups.length){
+        if (res.groups.length) {
             for (const g of res.groups.sort((a, b) => b.primary - a.primary).slice(0, 4)) {
                 fields.push({
                     name: `${g.primary ? "[Primary] " : ""}${g.name}`,
@@ -321,7 +309,7 @@ module.exports = class Roblox {
                     `${secondEmoji}Followers: ${formatNum(res.user.counts.followers)}`,
                     `${secondEmoji}Following: ${formatNum(res.user.counts.following)}`,
                 ].join("\n"),
-                author: { name: `Roblox Info for ${user ? `${user.tag} (${user.id})` : `ID: ${res.user.id}`}`,  icon_url: user?.displayAvatarURL?.({dynamic: true}) ?? `https://cdn.discordapp.com/emojis/411630434040938509.png`, url: `https://my.elara.services/support` },
+                author: { name: `Roblox Info for ${user ? `${user.tag} (${user.id})` : `ID: ${res.user.id}`}`, icon_url: user?.displayAvatarURL?.({ dynamic: true }) ?? `https://cdn.discordapp.com/emojis/411630434040938509.png`, url: `https://my.elara.services/support` },
                 footer: { text: warning ? `This will only show up to 4 groups!` : `` }
             }],
             components: showButtons ? [
