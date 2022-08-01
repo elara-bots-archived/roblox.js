@@ -309,7 +309,7 @@ module.exports = class Roblox {
                     `${secondEmoji}Followers: ${formatNum(res.user.counts.followers)}`,
                     `${secondEmoji}Following: ${formatNum(res.user.counts.following)}`,
                 ].join("\n"),
-                author: { name: `Roblox Info for ${user ? `${user.tag} (${user.id})` : `ID: ${res.user.id}`}`, icon_url: user?.displayAvatarURL?.({ dynamic: true }) ?? `https://cdn.discordapp.com/emojis/411630434040938509.png`, url: `https://my.elara.services/support` },
+                author: { name: `Roblox Info for ${user ? `${user.tag} (${user.id})` : `ID: ${res.user.id}`}`, icon_url: user?.displayAvatarURL?.({ dynamic: true }) ?? `https://cdn.discordapp.com/emojis/411630434040938509.png`, url: `https://services.elara.workers.dev/support` },
                 footer: { text: warning ? `This will only show up to 4 groups!` : `` }
             }],
             components: showButtons ? [
